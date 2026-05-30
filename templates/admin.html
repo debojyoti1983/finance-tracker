@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}Admin — Finance Tracker{% endblock %}
+
+{% block content %}
+<div class="page-header px-4 pt-4 pb-3">
+  <h4 class="mb-0"><i class="bi bi-shield-lock me-2"></i>Admin Panel</h4>
+  <p class="text-muted mb-0 small">Manage application users</p>
+</div>
+
+<div class="px-4 pb-4">
+  <div class="row g-4">
+
+    <!-- User list -->
+    <div class="col-lg-8">
+      <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-people me-2"></i>Users <span class="badge bg-secondary">{{ users|length }}</span></span>
+        </div>
+        <div class="card-body p-0">
+          {% if users %}
+          <div class="table-responsive">
+            <table class="table table-hover mb-0 small">
+              <thead class="table-light">
+                <tr>
+                  <th>User</th>
+                  <th>Email / Phone</th>
+                  <th>Role / ID</th>
+                  <th>Status</th>
+                  <th>Joined</th>
+                  <th class="text-end">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for user in users %}
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ user.username }}</div>
+                    {% if user.full_name %}<div class="text-muted" style="font-size:.78rem">{{ user.full_name }}</div>{% endif %}
+                  </td>
+                  <td>
+                    <div>{{ user.email or '—' }}</div>
+                    {% if user.phone %}<div class="text-muted" style="font-size:.78rem">{{ user.phone }}</div>{% endif %}
+                  </td>
+                  <td>
+                    {% if user.role == 'admin' %}
+                      <span class="badge bg-danger">Admin</span>
+                      {% if user.admin_id %}<div class="text-muted mt-1" style="font-size:.75rem;font-family:monospace">{{ user.admin_id }}</div>{% endif %}
+                    {% else %}
+                      <span class="badge bg-secondary">User</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if user.is_active %}
+                      <span class="badge bg-success">Active</span>
+                    {% else %}
+                      <span class="badge bg-warning text-dark">Inactive</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-muted">{{ user.created_at[:10] if user.created_at else '—' }}</td>
+                  <td class="text-end">
+                    <button class="btn btn-sm btn-outline-secondary me-1"
+                      data-bs-toggle="modal" data-bs-target="#resetPwModal{{ user.id }}"
+                      title="Reset password"><i class="bi bi-key"></i></button>
+                    <form action="/admin/users/{{ user.id }}/toggle" method="post" class="d-inline">
+                      <button type="submit"
+                        class="btn btn-sm btn-outline-{{ 'warning' if user.is_active else 'success' }} me-1"
+                        title="{{ 'Deactivate' if user.is_active else 'Activate' }}">
+                        <i class="bi bi-{{ 'pause' if user.is_active else 'play' }}"></i>
+                      </button>
+                    </form>
+                    <form action="/admin/users/{{ user.id }}/delete" method="post" class="d-inline"
+                      onsubmit="return confirm('Delete user {{ user.username }}?')">
+                      <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+
+                <!-- Reset password modal -->
+                <div class="modal fade" id="resetPwModal{{ user.id }}" tabindex="-1">
+                  <div class="modal-dialog modal-sm">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h6 class="modal-title">Reset Password — {{ user.username }}</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                      </div>
+                      <form action="/admin/users/{{ user.id }}/reset-password" method="post">
+                        <div class="modal-body">
+                          <input type="password" name="new_password" class="form-control"
+                            placeholder="New password (min 8 chars)" required minlength="8">
+                        </div>
+                        <div class="modal-footer">
+                          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                          <button type="submit" class="btn btn-primary btn-sm">Reset</button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="text-center text-muted py-5">
+            <i class="bi bi-people fs-1 d-block mb-2"></i>No users yet.
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Add user form -->
+    <div class="col-lg-4">
+      <div class="card shadow-sm">
+        <div class="card-header"><i class="bi bi-person-plus me-2"></i>Add User</div>
+        <div class="card-body">
+          <form action="/admin/add-user" method="post">
+
+            <div class="small text-muted fw-semibold mb-2 text-uppercase" style="font-size:.7rem;letter-spacing:.06em">Account</div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Username <span class="text-danger">*</span></label>
+              <input type="text" name="username" class="form-control form-control-sm" required
+                pattern="[a-zA-Z0-9_]{3,20}" minlength="3" maxlength="20"
+                placeholder="3–20 chars, no spaces">
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Email</label>
+              <input type="email" name="email" class="form-control form-control-sm" placeholder="user@email.com">
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Password <span class="text-danger">*</span></label>
+              <input type="password" name="password" class="form-control form-control-sm"
+                placeholder="Min 8 characters" required minlength="8">
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Role</label>
+              <select name="role" id="adminRoleSelect" class="form-select form-select-sm"
+                onchange="toggleAdminNote(this.value)">
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+              </select>
+              <div id="adminIdNote" class="form-text text-warning d-none">
+                <i class="bi bi-info-circle me-1"></i>Admin ID will be auto-generated (ADM###).
+              </div>
+            </div>
+
+            <hr class="my-2">
+            <div class="small text-muted fw-semibold mb-2 text-uppercase" style="font-size:.7rem;letter-spacing:.06em">Personal</div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Full Name</label>
+              <input type="text" name="full_name" class="form-control form-control-sm" placeholder="Full legal name" maxlength="100">
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Date of Birth</label>
+              <input type="date" name="dob" class="form-control form-control-sm">
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Phone</label>
+              <input type="tel" name="phone" class="form-control form-control-sm"
+                placeholder="+91 98765 43210" pattern="^\+?[\d\s\-()]{7,20}$" maxlength="20">
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-sm w-100">
+              <i class="bi bi-person-plus me-1"></i>Create User
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mt-3 border-warning">
+        <div class="card-body text-muted small">
+          <i class="bi bi-shield-exclamation me-1 text-warning"></i>
+          <strong>Default admin:</strong> <code>admin</code> / <code>admin123</code>
+          — change the password immediately via <i class="bi bi-key"></i>.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function toggleAdminNote(role) {
+  document.getElementById('adminIdNote').classList.toggle('d-none', role !== 'admin');
+}
+</script>
+{% endblock %}

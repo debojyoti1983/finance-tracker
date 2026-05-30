@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create Account — Finance Tracker</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+<link href="/static/css/style.css" rel="stylesheet">
+<style>
+  body { background: #0f172a; min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; padding: 2rem 1rem; }
+  .reg-card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 2rem; width: 100%; max-width: 560px; }
+  .reg-logo { width: 48px; height: 48px; background: linear-gradient(135deg,#6366f1,#8b5cf6); border-radius: 12px;
+    display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: 700; color: #fff; margin: 0 auto .75rem; }
+  .reg-title { color: #f1f5f9; font-size: 1.3rem; font-weight: 700; text-align: center; }
+  .reg-sub { color: #94a3b8; text-align: center; font-size: .85rem; margin-bottom: 1.5rem; }
+  .section-label { color: #6366f1; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; margin-bottom: .6rem; }
+  .form-label { color: #cbd5e1; font-size: .85rem; font-weight: 500; }
+  .form-control, .form-select { background: #0f172a; border: 1px solid #334155; color: #f1f5f9; border-radius: 8px; }
+  .form-control:focus, .form-select:focus { background: #0f172a; border-color: #6366f1; color: #f1f5f9; box-shadow: 0 0 0 3px rgba(99,102,241,.2); }
+  .form-control::placeholder { color: #475569; }
+  .form-select option { background: #1e293b; }
+  .form-text { color: #64748b; font-size: .75rem; }
+  .btn-create { background: linear-gradient(135deg,#6366f1,#8b5cf6); border: none; border-radius: 8px;
+    padding: .65rem; font-weight: 600; width: 100%; color: #fff; }
+  .btn-create:hover { opacity: .9; color: #fff; }
+  .pw-strength { height: 4px; border-radius: 2px; transition: all .3s; margin-top: 4px; }
+  .strength-0 { width: 0; background: transparent; }
+  .strength-1 { width: 25%; background: #ef4444; }
+  .strength-2 { width: 50%; background: #f97316; }
+  .strength-3 { width: 75%; background: #eab308; }
+  .strength-4 { width: 100%; background: #22c55e; }
+  .alert { border-radius: 8px; font-size: .85rem; }
+  hr { border-color: #334155; }
+</style>
+</head>
+<body>
+<div class="reg-card">
+  <div class="reg-logo">₹</div>
+  <div class="reg-title">Create Account</div>
+  <div class="reg-sub">Finance Tracker — personal finance dashboard</div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+    <div class="alert alert-danger py-2 mb-2">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <form method="POST" novalidate>
+
+    <!-- Account credentials -->
+    <div class="section-label"><i class="bi bi-lock me-1"></i>Account Credentials</div>
+    <div class="row g-3 mb-3">
+      <div class="col-12">
+        <label class="form-label">Username <span class="text-danger">*</span></label>
+        <input type="text" name="username" class="form-control" required
+          value="{{ form.get('username','') }}"
+          pattern="[a-zA-Z0-9_]{3,20}"
+          minlength="3" maxlength="20"
+          placeholder="3–20 chars: letters, numbers, underscores"
+          autocomplete="username">
+        <div class="form-text">No spaces or special characters.</div>
+      </div>
+      <div class="col-12">
+        <label class="form-label">Email <span class="text-danger">*</span></label>
+        <input type="email" name="email" class="form-control" required
+          value="{{ form.get('email','') }}"
+          placeholder="you@example.com"
+          autocomplete="email">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Password <span class="text-danger">*</span></label>
+        <input type="password" name="password" id="pwField" class="form-control" required
+          minlength="8" placeholder="Min. 8 characters"
+          autocomplete="new-password" oninput="checkStrength(this.value)">
+        <div class="pw-strength strength-0" id="pwBar"></div>
+        <div class="form-text" id="pwLabel">Use 8+ chars with letters, numbers &amp; symbols.</div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Confirm Password <span class="text-danger">*</span></label>
+        <input type="password" name="confirm_password" id="confirmField" class="form-control" required
+          minlength="8" placeholder="Re-enter password"
+          autocomplete="new-password" oninput="checkMatch()">
+        <div class="form-text" id="matchLabel"></div>
+      </div>
+    </div>
+
+    <hr>
+    <!-- Personal details -->
+    <div class="section-label"><i class="bi bi-person me-1"></i>Personal Details</div>
+    <div class="row g-3 mb-3">
+      <div class="col-12">
+        <label class="form-label">Full Name <span class="text-danger">*</span></label>
+        <input type="text" name="full_name" class="form-control" required
+          value="{{ form.get('full_name','') }}"
+          placeholder="As on your ID document"
+          maxlength="100">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Date of Birth <span class="text-danger">*</span></label>
+        <input type="date" name="dob" class="form-control" required
+          value="{{ form.get('dob','') }}"
+          max="{{ today }}">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Phone <span class="text-danger">*</span></label>
+        <input type="tel" name="phone" class="form-control" required
+          value="{{ form.get('phone','') }}"
+          placeholder="+91 98765 43210"
+          pattern="^\+?[\d\s\-()]{7,20}$"
+          maxlength="20">
+      </div>
+      <div class="col-12">
+        <label class="form-label">Country <span class="text-danger">*</span></label>
+        <select name="country" class="form-select" required>
+          {% set countries = ['India','United States','United Kingdom','Canada','Australia','Germany','France','Singapore','UAE','New Zealand','South Africa','Brazil','Japan','Other'] %}
+          {% for c in countries %}
+          <option value="{{ c }}" {% if form.get('country', 'India') == c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <hr>
+    <!-- Security question -->
+    <div class="section-label"><i class="bi bi-shield-check me-1"></i>Password Recovery</div>
+    <div class="row g-3 mb-4">
+      <div class="col-12">
+        <label class="form-label">Security Question <span class="text-danger">*</span></label>
+        <select name="security_question" class="form-select" required>
+          <option value="">— Select a question —</option>
+          {% for q in security_questions %}
+          <option value="{{ q }}" {% if form.get('security_question') == q %}selected{% endif %}>{{ q }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12">
+        <label class="form-label">Your Answer <span class="text-danger">*</span></label>
+        <input type="text" name="security_answer" class="form-control" required
+          placeholder="Answer (stored securely, case-insensitive)"
+          maxlength="100">
+        <div class="form-text">Your answer is hashed and stored securely.</div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-create">
+      <i class="bi bi-person-check me-2"></i>Create Account
+    </button>
+  </form>
+
+  <hr>
+  <div class="text-center">
+    <span class="text-muted small">Already have an account?</span>
+    <a href="/login" class="btn btn-outline-light btn-sm ms-2">Sign In</a>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const strengths = ['','Weak','Fair','Good','Strong'];
+const colours   = ['strength-0','strength-1','strength-2','strength-3','strength-4'];
+
+function checkStrength(pw) {
+  let s = 0;
+  if (pw.length >= 8) s++;
+  if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) s++;
+  if (/\d/.test(pw)) s++;
+  if (/[^A-Za-z0-9]/.test(pw)) s++;
+  const bar = document.getElementById('pwBar');
+  bar.className = 'pw-strength ' + colours[s];
+  document.getElementById('pwLabel').textContent = s > 0 ? 'Strength: ' + strengths[s] : 'Use 8+ chars with letters, numbers & symbols.';
+}
+
+function checkMatch() {
+  const pw = document.getElementById('pwField').value;
+  const c  = document.getElementById('confirmField').value;
+  const lbl = document.getElementById('matchLabel');
+  if (!c) { lbl.textContent = ''; return; }
+  lbl.style.color = pw === c ? '#22c55e' : '#ef4444';
+  lbl.textContent  = pw === c ? 'Passwords match.' : 'Passwords do not match.';
+}
+</script>
+</body>
+</html>

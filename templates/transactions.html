@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}Transactions — Finance Tracker{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h4 class="page-title">Transactions</h4>
+  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTxnModal">
+    <i class="bi bi-plus-lg me-1"></i>Add Transaction
+  </button>
+</div>
+
+<div class="px-4">
+  <!-- Filters -->
+  <form method="GET" class="filter-bar mb-3">
+    <input type="month" name="month" value="{{ month }}" class="form-control" style="width:160px">
+    <select name="type" class="form-select" style="width:130px">
+      <option value="all" {% if txn_type=='all' %}selected{% endif %}>All Types</option>
+      <option value="income" {% if txn_type=='income' %}selected{% endif %}>Income</option>
+      <option value="expense" {% if txn_type=='expense' %}selected{% endif %}>Expense</option>
+    </select>
+    <select name="category" class="form-select" style="width:160px">
+      <option value="">All Categories</option>
+      {% for c in categories %}<option value="{{ c.id }}" {% if cat_filter==c.id|string %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+    </select>
+    <button type="submit" class="btn btn-outline-primary"><i class="bi bi-funnel"></i> Filter</button>
+  </form>
+
+  <!-- Summary -->
+  <div class="row g-2 mb-3">
+    <div class="col-4">
+      <div class="summary-pill income-pill">
+        <i class="bi bi-arrow-down-circle-fill me-1"></i>
+        <span>Income: {{ fmt_inr(total_income) }}</span>
+      </div>
+    </div>
+    <div class="col-4">
+      <div class="summary-pill expense-pill">
+        <i class="bi bi-arrow-up-circle-fill me-1"></i>
+        <span>Expense: {{ fmt_inr(total_expense) }}</span>
+      </div>
+    </div>
+    <div class="col-4">
+      <div class="summary-pill {% if total_income - total_expense >= 0 %}saving-pill{% else %}deficit-pill{% endif %}">
+        <i class="bi bi-piggy-bank me-1"></i>
+        <span>Net: {{ fmt_inr(total_income - total_expense) }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transaction List -->
+  <div class="table-card">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Description</th>
+          <th>Category</th>
+          <th>Method</th>
+          <th class="text-end">Amount</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in txns %}
+        <tr>
+          <td class="text-muted small">{{ t.date }}</td>
+          <td>
+            <span style="color:{{ t.color or '#6c757d' }}">{{ t.icon or '' }}</span>
+            {{ t.description or '—' }}
+          </td>
+          <td><span class="badge" style="background:{{ t.color or '#6c757d' }}22;color:{{ t.color or '#6c757d' }};border:1px solid {{ t.color or '#6c757d' }}44">{{ t.cat_name or '—' }}</span></td>
+          <td class="text-muted small">{{ t.payment_method | upper }}</td>
+          <td class="text-end fw-semibold {% if t.type == 'income' %}text-success{% else %}text-danger{% endif %}">
+            {% if t.type == 'income' %}+{% else %}-{% endif %}{{ fmt_inr(t.amount) }}
+          </td>
+          <td>
+            <form method="POST" action="/transactions/{{ t.id }}/delete" onsubmit="return confirm('Delete this transaction?')">
+              <button class="btn btn-sm btn-outline-danger border-0"><i class="bi bi-trash3"></i></button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted py-4">No transactions found for this period.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add Transaction Modal -->
+<div class="modal fade" id="addTxnModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Add Transaction</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="/transactions/add">
+        <div class="modal-body">
+          <div class="type-toggle mb-3">
+            <button type="button" class="type-btn active" id="btnExpense" onclick="setType('expense')">
+              <i class="bi bi-arrow-up-circle-fill"></i> Expense
+            </button>
+            <button type="button" class="type-btn" id="btnIncome" onclick="setType('income')">
+              <i class="bi bi-arrow-down-circle-fill"></i> Income
+            </button>
+          </div>
+          <input type="hidden" name="type" id="txnType" value="expense">
+
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label">Amount (₹) *</label>
+              <input type="number" name="amount" class="form-control" required min="0.01" step="0.01" placeholder="0.00">
+            </div>
+            <div class="col-6">
+              <label class="form-label">Date *</label>
+              <input type="date" name="date" class="form-control" required value="{{ today }}">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Category</label>
+              <select name="category_id" class="form-select" id="catSelect">
+                <option value="">Select category</option>
+                {% for c in categories if c.type == 'expense' %}
+                  <option value="{{ c.id }}" data-type="expense">{{ c.icon }} {{ c.name }}</option>
+                {% endfor %}
+                {% for c in categories if c.type == 'income' %}
+                  <option value="{{ c.id }}" data-type="income" style="display:none">{{ c.icon }} {{ c.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Description</label>
+              <input type="text" name="description" class="form-control" placeholder="What was this for?">
+            </div>
+            <div class="col-6">
+              <label class="form-label">Payment Method</label>
+              <select name="payment_method" class="form-select">
+                <option value="upi">UPI</option>
+                <option value="card">Card</option>
+                <option value="cash">Cash</option>
+                <option value="netbanking">Net Banking</option>
+                <option value="cheque">Cheque</option>
+                <option value="auto_debit">Auto Debit</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Notes</label>
+              <input type="text" name="notes" class="form-control" placeholder="Optional">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Transaction</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function setType(type) {
+  document.getElementById('txnType').value = type;
+  document.getElementById('btnExpense').classList.toggle('active', type === 'expense');
+  document.getElementById('btnIncome').classList.toggle('active', type === 'income');
+  document.querySelectorAll('#catSelect option[data-type]').forEach(o => {
+    o.style.display = o.dataset.type === type ? '' : 'none';
+  });
+  document.querySelector('#catSelect option:not([data-type])').selected = true;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Finance Tracker{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h4 class="page-title">Dashboard</h4>
+  <span class="text-muted">{{ today }}</span>
+</div>
+
+<!-- KPI Cards Row -->
+<div class="row g-3 px-4 mb-3">
+  <div class="col-6 col-xl-3">
+    <div class="kpi-card income">
+      <div class="kpi-icon"><i class="bi bi-arrow-down-circle-fill"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-label">This Month Income</div>
+        <div class="kpi-value">{{ fmt_inr(income) }}</div>
+        <div class="kpi-sub">Total: {{ fmt_inr((profile.monthly_income or 0) + (profile.other_income or 0)) }} expected</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="kpi-card expense">
+      <div class="kpi-icon"><i class="bi bi-arrow-up-circle-fill"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-label">This Month Spend</div>
+        <div class="kpi-value">{{ fmt_inr(expense) }}</div>
+        {% set savings_pct = ((income - expense) / income * 100) if income > 0 else 0 %}
+        <div class="kpi-sub">{{ "%.0f"|format(savings_pct) }}% saved this month</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="kpi-card invest">
+      <div class="kpi-icon"><i class="bi bi-graph-up-arrow"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-label">Portfolio Value</div>
+        <div class="kpi-value">{{ fmt_inr(total_current) }}</div>
+        <div class="kpi-sub {% if inv_gain >= 0 %}text-success{% else %}text-danger{% endif %}">
+          {% if inv_gain >= 0 %}+{% endif %}{{ fmt_inr(inv_gain) }} ({{ "%.1f"|format(inv_gain_pct) }}%)
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="kpi-card networth">
+      <div class="kpi-icon"><i class="bi bi-wallet2"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-label">Net Worth</div>
+        <div class="kpi-value">{{ fmt_inr(net_worth) }}</div>
+        <div class="kpi-sub">Savings: {{ fmt_inr(total_savings) }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Savings Goal Progress -->
+{% if profile.monthly_income %}
+<div class="px-4 mb-3">
+  <div class="savings-goal-bar">
+    <div class="d-flex justify-content-between mb-1">
+      <span class="fw-semibold">Monthly Savings Goal</span>
+      <span>{{ fmt_inr(income - expense) }} / {{ fmt_inr(savings_goal) }}</span>
+    </div>
+    {% set goal_pct = [((income - expense) / savings_goal * 100) if savings_goal > 0 else 0, 100]|min %}
+    {% set goal_pct = [goal_pct, 0]|max %}
+    <div class="progress" style="height:10px">
+      <div class="progress-bar {% if goal_pct >= 100 %}bg-success{% elif goal_pct >= 60 %}bg-warning{% else %}bg-danger{% endif %}"
+           style="width:{{ goal_pct }}%"></div>
+    </div>
+    <small class="text-muted">{{ "%.0f"|format(profile.savings_goal_percent) }}% of income target</small>
+  </div>
+</div>
+{% endif %}
+
+<!-- Charts + Recent -->
+<div class="row g-3 px-4 mb-3">
+  <div class="col-lg-8">
+    <div class="chart-card">
+      <div class="chart-title">6-Month Income vs Expense</div>
+      <canvas id="trendChart" height="100"></canvas>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="chart-card">
+      <div class="chart-title">Spend by Category</div>
+      <canvas id="catChart" height="180"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Bills + Recent Transactions -->
+<div class="row g-3 px-4 mb-4">
+  <!-- Upcoming Bills -->
+  <div class="col-lg-5">
+    <div class="list-card">
+      <div class="list-card-header">
+        <span><i class="bi bi-receipt me-2"></i>Upcoming Bills</span>
+        <a href="/bills" class="btn btn-sm btn-outline-primary">View All</a>
+      </div>
+      {% if bills %}
+        <div class="bills-total-bar">
+          <span>Total Unpaid</span>
+          <span class="fw-bold text-danger">{{ fmt_inr(bills_due) }}</span>
+        </div>
+        {% for b in bills[:5] %}
+        <div class="bill-item">
+          <div>
+            <div class="fw-semibold">{{ b.name }}</div>
+            <div class="text-muted small">Due: {{ b.due_day }}{% if b.due_day in [1,21,31] %}st{% elif b.due_day in [2,22] %}nd{% elif b.due_day in [3,23] %}rd{% else %}th{% endif %} of month</div>
+          </div>
+          <div class="text-end">
+            <div class="fw-bold">{{ fmt_inr(b.amount) }}</div>
+            {% if b.auto_debit %}<div class="badge bg-info">Auto</div>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state-sm">No pending bills</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Recent Transactions -->
+  <div class="col-lg-7">
+    <div class="list-card">
+      <div class="list-card-header">
+        <span><i class="bi bi-clock-history me-2"></i>Recent Transactions</span>
+        <a href="/transactions" class="btn btn-sm btn-outline-primary">View All</a>
+      </div>
+      {% for t in recent_txns %}
+      <div class="txn-item">
+        <div class="txn-icon" style="background:{{ t.color or '#6c757d' }}20;color:{{ t.color or '#6c757d' }}">
+          {{ t.icon or ('↓' if t.type == 'income' else '↑') }}
+        </div>
+        <div class="txn-desc">
+          <div class="fw-semibold">{{ t.description or t.cat_name or 'Transaction' }}</div>
+          <div class="text-muted small">{{ t.cat_name }} · {{ t.date }} · {{ t.payment_method }}</div>
+        </div>
+        <div class="txn-amount {% if t.type == 'income' %}text-success{% else %}text-danger{% endif %}">
+          {% if t.type == 'income' %}+{% else %}-{% endif %}{{ fmt_inr(t.amount) }}
+        </div>
+      </div>
+      {% else %}
+        <div class="empty-state-sm">No transactions yet. <a href="/transactions">Add one</a></div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+const trendData = {{ trend_data | safe }};
+const catData = {{ cat_spend | tojson }};
+
+// Trend chart
+new Chart(document.getElementById('trendChart'), {
+  type: 'bar',
+  data: {
+    labels: trendData.map(d => d.month),
+    datasets: [
+      { label: 'Income', data: trendData.map(d => d.income),
+        backgroundColor: '#28a74566', borderColor: '#28a745', borderWidth: 2, borderRadius: 6 },
+      { label: 'Expense', data: trendData.map(d => d.expense),
+        backgroundColor: '#dc354566', borderColor: '#dc3545', borderWidth: 2, borderRadius: 6 }
+    ]
+  },
+  options: {
+    responsive: true, plugins: { legend: { position: 'top' } },
+    scales: { y: { ticks: { callback: v => '₹' + (v >= 100000 ? (v/100000).toFixed(1)+'L' : v >= 1000 ? (v/1000).toFixed(0)+'K' : v) } } }
+  }
+});
+
+// Category donut
+const validCats = catData.filter(c => c.total > 0);
+if (validCats.length > 0) {
+  new Chart(document.getElementById('catChart'), {
+    type: 'doughnut',
+    data: {
+      labels: validCats.map(c => c.name),
+      datasets: [{ data: validCats.map(c => c.total),
+        backgroundColor: validCats.map(c => c.color + 'cc'),
+        borderColor: validCats.map(c => c.color), borderWidth: 2 }]
+    },
+    options: {
+      responsive: true, cutout: '65%',
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }
+    }
+  });
+} else {
+  document.getElementById('catChart').parentElement.innerHTML +=
+    '<p class="text-center text-muted mt-4">No expense data for this month</p>';
+}
+</script>
+{% endblock %}

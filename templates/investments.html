@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% block title %}Investments — Finance Tracker{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h4 class="page-title">Investments & Portfolio</h4>
+  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addInvModal">
+    <i class="bi bi-plus-lg me-1"></i>Add Investment
+  </button>
+</div>
+
+<div class="px-4">
+  <!-- Portfolio Summary -->
+  <div class="portfolio-summary mb-4">
+    <div class="port-stat">
+      <div class="port-label">Total Invested</div>
+      <div class="port-value">{{ fmt_inr(total_invested) }}</div>
+    </div>
+    <div class="port-divider"></div>
+    <div class="port-stat">
+      <div class="port-label">Current Value</div>
+      <div class="port-value">{{ fmt_inr(total_current) }}</div>
+    </div>
+    <div class="port-divider"></div>
+    <div class="port-stat">
+      <div class="port-label">Total Gain/Loss</div>
+      <div class="port-value {% if total_gain >= 0 %}text-success{% else %}text-danger{% endif %}">
+        {% if total_gain >= 0 %}+{% endif %}{{ fmt_inr(total_gain) }}
+        <span class="fs-6">({% if total_gain >= 0 %}+{% endif %}{{ "%.1f"|format(gain_pct) }}%)</span>
+      </div>
+    </div>
+  </div>
+
+  {% for type_key, type_label in [('stock','Stocks (Demat)'),('mutual_fund','Mutual Funds'),('fd','Fixed Deposits'),('ppf','PPF'),('epf','EPF / PF'),('nps','NPS'),('gold','Gold'),('crypto','Crypto'),('other','Other')] %}
+  {% if type_key in by_type %}
+  <div class="inv-section mb-4">
+    <div class="inv-section-header">
+      <span>{{ type_label }}</span>
+      <span class="text-muted small">
+        Invested: {{ fmt_inr(by_type[type_key]|sum(attribute='invested_amount')) }} →
+        Current: {{ fmt_inr(by_type[type_key]|sum(attribute='current_value')) }}
+      </span>
+    </div>
+    <div class="table-card">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Name</th>
+            {% if type_key in ['stock','mutual_fund'] %}<th>Symbol/Folio</th>{% endif %}
+            <th>Invested</th>
+            <th>Current Value</th>
+            <th>Gain/Loss</th>
+            {% if type_key in ['fd','ppf','nps'] %}<th>Rate</th><th>Maturity</th>{% endif %}
+            {% if type_key in ['stock','mutual_fund'] %}<th>Qty / Units</th><th>Avg/CMP</th>{% endif %}
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in by_type[type_key] %}
+          {% set gain = inv.current_value - inv.invested_amount %}
+          {% set gain_p = (gain / inv.invested_amount * 100) if inv.invested_amount > 0 else 0 %}
+          <tr>
+            <td>
+              <div class="fw-semibold">{{ inv.name }}</div>
+              {% if inv.demat_account %}<div class="text-muted small">{{ inv.demat_account }}</div>{% endif %}
+            </td>
+            {% if type_key in ['stock','mutual_fund'] %}
+            <td class="text-muted small">{{ inv.symbol or inv.folio_number or '—' }}</td>
+            {% endif %}
+            <td>{{ fmt_inr(inv.invested_amount) }}</td>
+            <td class="fw-semibold">{{ fmt_inr(inv.current_value) }}</td>
+            <td class="{% if gain >= 0 %}text-success{% else %}text-danger{% endif %}">
+              {% if gain >= 0 %}+{% endif %}{{ fmt_inr(gain) }}<br>
+              <small>({% if gain >= 0 %}+{% endif %}{{ "%.1f"|format(gain_p) }}%)</small>
+            </td>
+            {% if type_key in ['fd','ppf','nps'] %}
+            <td>{{ inv.interest_rate }}%</td>
+            <td class="text-muted small">{{ inv.maturity_date or '—' }}</td>
+            {% endif %}
+            {% if type_key in ['stock','mutual_fund'] %}
+            <td>{{ "%.2f"|format(inv.quantity) if inv.quantity else '—' }}</td>
+            <td class="text-muted small">
+              {{ fmt_inr(inv.buy_price) }} / {{ fmt_inr(inv.current_price) }}
+            </td>
+            {% endif %}
+            <td>
+              <button class="btn btn-sm btn-outline-primary border-0" data-bs-toggle="modal"
+                data-bs-target="#updateInvModal{{ inv.id }}"><i class="bi bi-pencil"></i></button>
+              <form method="POST" action="/investments/{{ inv.id }}/delete" class="d-inline"
+                onsubmit="return confirm('Remove this investment?')">
+                <button class="btn btn-sm btn-outline-danger border-0"><i class="bi bi-trash3"></i></button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Update modals -->
+  {% for inv in by_type[type_key] %}
+  <div class="modal fade" id="updateInvModal{{ inv.id }}" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Update — {{ inv.name }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <form method="POST" action="/investments/{{ inv.id }}/update">
+          <div class="modal-body row g-3">
+            {% if inv.quantity %}
+            <div class="col-6">
+              <label class="form-label">Current Price (₹)</label>
+              <input type="number" name="current_price" class="form-control" step="0.01"
+                value="{{ inv.current_price }}" placeholder="Enter CMP">
+            </div>
+            {% else %}
+            <div class="col-6">
+              <label class="form-label">Current Value (₹)</label>
+              <input type="number" name="current_value" class="form-control" step="0.01"
+                value="{{ inv.current_value }}">
+            </div>
+            {% endif %}
+            <div class="col-6">
+              <label class="form-label">Notes</label>
+              <input type="text" class="form-control" value="{{ inv.notes or '' }}" disabled>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Update</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  {% endif %}
+  {% endfor %}
+
+  {% if not by_type %}
+  <div class="text-center py-5 text-muted">
+    <i class="bi bi-graph-up-arrow fs-1 d-block mb-3"></i>
+    No investments tracked yet. Add stocks, mutual funds, FDs, PPF, and more.
+  </div>
+  {% endif %}
+</div>
+
+<!-- Add Investment Modal -->
+<div class="modal fade" id="addInvModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-graph-up-arrow me-2"></i>Add Investment</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="/investments/add">
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Investment Name *</label>
+              <input type="text" name="name" class="form-control" required
+                placeholder="e.g. HDFC Bank, Axis Bluechip Fund">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Type *</label>
+              <select name="type" class="form-select" id="invType" required onchange="toggleInvFields()">
+                <option value="stock">Stock (Demat)</option>
+                <option value="mutual_fund">Mutual Fund</option>
+                <option value="fd">Fixed Deposit</option>
+                <option value="ppf">PPF</option>
+                <option value="epf">EPF / PF</option>
+                <option value="nps">NPS</option>
+                <option value="gold">Gold</option>
+                <option value="crypto">Crypto</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <!-- Stock/MF fields -->
+            <div class="col-md-4 stock-field mf-field">
+              <label class="form-label">Symbol / ISIN</label>
+              <input type="text" name="symbol" class="form-control" placeholder="e.g. HDFCBANK">
+            </div>
+            <div class="col-md-4 mf-field">
+              <label class="form-label">Folio Number</label>
+              <input type="text" name="folio_number" class="form-control" placeholder="Folio">
+            </div>
+            <div class="col-md-4 stock-field">
+              <label class="form-label">Demat Account</label>
+              <input type="text" name="demat_account" class="form-control"
+                placeholder="{{ profile.demat_broker or 'Broker' }}">
+            </div>
+            <div class="col-md-4 stock-field mf-field">
+              <label class="form-label">Quantity / Units</label>
+              <input type="number" name="quantity" class="form-control" step="0.001" placeholder="0">
+            </div>
+            <div class="col-md-4 stock-field mf-field">
+              <label class="form-label">Avg Buy Price (₹)</label>
+              <input type="number" name="buy_price" class="form-control" step="0.01" placeholder="0.00">
+            </div>
+            <div class="col-md-4 stock-field mf-field">
+              <label class="form-label">Current Price / NAV (₹)</label>
+              <input type="number" name="current_price" class="form-control" step="0.01" placeholder="0.00">
+            </div>
+
+            <!-- FD/PPF/Deposit fields -->
+            <div class="col-md-6">
+              <label class="form-label">Amount Invested (₹)</label>
+              <input type="number" name="invested_amount" class="form-control" step="0.01"
+                placeholder="Principal / invested amount">
+            </div>
+            <div class="col-md-6 fd-field ppf-field nps-field">
+              <label class="form-label">Interest Rate (%)</label>
+              <input type="number" name="interest_rate" class="form-control" step="0.01" placeholder="e.g. 7.1">
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Purchase / Start Date</label>
+              <input type="date" name="purchase_date" class="form-control">
+            </div>
+            <div class="col-md-6 fd-field ppf-field nps-field">
+              <label class="form-label">Maturity Date</label>
+              <input type="date" name="maturity_date" class="form-control">
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">Notes</label>
+              <input type="text" name="notes" class="form-control" placeholder="Bank name, scheme name, etc.">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Investment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function toggleInvFields() {
+  const type = document.getElementById('invType').value;
+  document.querySelectorAll('.stock-field').forEach(el => el.style.display = type === 'stock' ? '' : 'none');
+  document.querySelectorAll('.mf-field').forEach(el => el.style.display = type === 'mutual_fund' ? '' : 'none');
+  document.querySelectorAll('.fd-field').forEach(el => el.style.display = type === 'fd' ? '' : 'none');
+  document.querySelectorAll('.ppf-field').forEach(el => el.style.display = ['ppf','epf','nps'].includes(type) ? '' : 'none');
+  document.querySelectorAll('.nps-field').forEach(el => el.style.display = type === 'nps' ? '' : 'none');
+}
+toggleInvFields();
+</script>
+{% endblock %}

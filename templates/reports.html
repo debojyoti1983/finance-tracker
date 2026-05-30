@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Reports — Finance Tracker{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h4 class="page-title">Annual Reports — {{ year }}</h4>
+</div>
+
+<div class="px-4">
+  <!-- Annual KPIs -->
+  <div class="row g-3 mb-4">
+    <div class="col-4">
+      <div class="kpi-card-sm">
+        <div class="kpi-sm-label">Annual Income</div>
+        <div class="kpi-sm-value text-success">{{ fmt_inr(ann_income) }}</div>
+      </div>
+    </div>
+    <div class="col-4">
+      <div class="kpi-card-sm danger">
+        <div class="kpi-sm-label">Annual Expense</div>
+        <div class="kpi-sm-value">{{ fmt_inr(ann_expense) }}</div>
+      </div>
+    </div>
+    <div class="col-4">
+      <div class="kpi-card-sm {% if ann_saving >= 0 %}success{% else %}danger{% endif %}">
+        <div class="kpi-sm-label">Annual Saving</div>
+        <div class="kpi-sm-value">{{ fmt_inr(ann_saving) }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <div class="chart-card">
+        <div class="chart-title">Monthly Income vs Expense — {{ year }}</div>
+        <canvas id="annualChart" height="100"></canvas>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="chart-card">
+        <div class="chart-title">Expense Breakdown</div>
+        <canvas id="expensePieChart" height="180"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4 mt-1">
+    <div class="col-lg-6">
+      <div class="chart-card">
+        <div class="chart-title">Portfolio Allocation</div>
+        <canvas id="allocChart" height="180"></canvas>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="chart-card">
+        <div class="chart-title">Monthly Savings Trend</div>
+        <canvas id="savingsChart" height="180"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category Table -->
+  <div class="table-card mt-4">
+    <div class="px-3 py-2 fw-semibold border-bottom">Top Expense Categories — {{ year }}</div>
+    <table class="table mb-0">
+      <thead><tr><th>Category</th><th class="text-end">Total</th><th class="text-end">% of Expense</th></tr></thead>
+      <tbody>
+        {% for c in cat_data %}
+        <tr>
+          <td>
+            <span class="badge me-2" style="background:{{ c.color }}33;color:{{ c.color }};border:1px solid {{ c.color }}55">
+              {{ c.name }}
+            </span>
+          </td>
+          <td class="text-end">{{ fmt_inr(c.total) }}</td>
+          <td class="text-end text-muted">{{ "%.1f"|format((c.total / ann_expense * 100) if ann_expense > 0 else 0) }}%</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const mData = {{ monthly_data | safe }};
+const catData = {{ cat_data | tojson }};
+const invAlloc = {{ inv_alloc | tojson }};
+
+// Annual bar chart
+new Chart(document.getElementById('annualChart'), {
+  type: 'bar',
+  data: {
+    labels: mData.map(d => d.month),
+    datasets: [
+      { label: 'Income', data: mData.map(d => d.income), backgroundColor: '#28a74577', borderColor: '#28a745', borderWidth:2, borderRadius:6 },
+      { label: 'Expense', data: mData.map(d => d.expense), backgroundColor: '#dc354577', borderColor: '#dc3545', borderWidth:2, borderRadius:6 }
+    ]
+  },
+  options: { responsive: true, plugins: { legend: { position: 'top' } },
+    scales: { y: { ticks: { callback: v => '₹' + (v >= 100000 ? (v/100000).toFixed(0)+'L' : v >= 1000 ? (v/1000).toFixed(0)+'K' : v) } } } }
+});
+
+// Expense pie
+const validCats = catData.filter(c => c.total > 0);
+if (validCats.length) {
+  new Chart(document.getElementById('expensePieChart'), {
+    type: 'doughnut',
+    data: {
+      labels: validCats.map(c => c.name),
+      datasets: [{ data: validCats.map(c => c.total),
+        backgroundColor: validCats.map(c => c.color + 'cc'), borderColor: validCats.map(c => c.color), borderWidth: 2 }]
+    },
+    options: { responsive: true, cutout: '60%', plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } } }
+  });
+}
+
+// Investment allocation
+const typeLabels = { stock:'Stocks', mutual_fund:'MF', fd:'FD', ppf:'PPF', epf:'EPF', nps:'NPS', gold:'Gold', crypto:'Crypto', other:'Other' };
+if (invAlloc.length) {
+  const colors = ['#28a745','#17a2b8','#ffc107','#6f42c1','#fd7e14','#dc3545','#20c997','#e83e8c','#6c757d'];
+  new Chart(document.getElementById('allocChart'), {
+    type: 'doughnut',
+    data: {
+      labels: invAlloc.map(d => typeLabels[d.type] || d.type),
+      datasets: [{ data: invAlloc.map(d => d.total),
+        backgroundColor: colors.slice(0, invAlloc.length), borderWidth: 2 }]
+    },
+    options: { responsive: true, cutout: '60%', plugins: { legend: { position: 'bottom' } } }
+  });
+}
+
+// Savings line
+new Chart(document.getElementById('savingsChart'), {
+  type: 'line',
+  data: {
+    labels: mData.map(d => d.month),
+    datasets: [{ label: 'Net Saving', data: mData.map(d => d.saving),
+      borderColor: '#17a2b8', backgroundColor: '#17a2b822', fill: true, tension: 0.4 }]
+  },
+  options: { responsive: true,
+    scales: { y: { ticks: { callback: v => '₹' + (v >= 1000 ? (v/1000).toFixed(0)+'K' : v) } } } }
+});
+</script>
+{% endblock %}

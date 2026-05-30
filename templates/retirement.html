@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block title %}Retirement Planner — Finance Tracker{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h4 class="page-title">Retirement Planner</h4>
+</div>
+
+<div class="px-4">
+  <div class="row g-4">
+    <!-- Inputs -->
+    <div class="col-lg-5">
+      <div class="ret-form-card">
+        <h5 class="mb-3"><i class="bi bi-sliders me-2"></i>Planning Parameters</h5>
+        <form method="POST">
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label">Current Age</label>
+              <input type="number" name="current_age" class="form-control"
+                value="{{ plan.current_age if plan else 30 }}" min="18" max="79">
+            </div>
+            <div class="col-6">
+              <label class="form-label">Retirement Age</label>
+              <input type="number" name="retirement_age" class="form-control"
+                value="{{ plan.retirement_age if plan else 60 }}" min="40" max="80">
+            </div>
+            <div class="col-6">
+              <label class="form-label">Life Expectancy</label>
+              <input type="number" name="life_expectancy" class="form-control"
+                value="{{ plan.life_expectancy if plan else 80 }}" min="60" max="100">
+            </div>
+            <div class="col-6">
+              <label class="form-label">Monthly Expense (₹ today)</label>
+              <input type="number" name="current_monthly_expense" class="form-control"
+                value="{{ plan.current_monthly_expense if plan else 0 }}" min="0">
+            </div>
+
+            <div class="col-12"><hr class="my-1"><small class="text-muted fw-semibold">GROWTH ASSUMPTIONS</small></div>
+
+            <div class="col-4">
+              <label class="form-label">Inflation %</label>
+              <input type="number" name="inflation_rate" class="form-control" step="0.1"
+                value="{{ plan.inflation_rate if plan else 6 }}">
+            </div>
+            <div class="col-4">
+              <label class="form-label">Pre-Ret. Return %</label>
+              <input type="number" name="expected_return_rate" class="form-control" step="0.1"
+                value="{{ plan.expected_return_rate if plan else 12 }}">
+            </div>
+            <div class="col-4">
+              <label class="form-label">Post-Ret. Return %</label>
+              <input type="number" name="post_retirement_return" class="form-control" step="0.1"
+                value="{{ plan.post_retirement_return if plan else 7 }}">
+            </div>
+
+            <div class="col-12"><hr class="my-1"><small class="text-muted fw-semibold">YOUR CURRENT STATUS</small></div>
+
+            <div class="col-6">
+              <label class="form-label">Existing Corpus (₹)</label>
+              <input type="number" name="current_corpus" class="form-control"
+                value="{{ plan.current_corpus if plan else 0 }}" min="0">
+              <small class="text-muted">PF + NPS + FDs + investments</small>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Monthly SIP (₹)</label>
+              <input type="number" name="monthly_sip" class="form-control"
+                value="{{ plan.monthly_sip if plan else 0 }}" min="0">
+              <small class="text-muted">Dedicated to retirement</small>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary w-100 mt-4">
+            <i class="bi bi-calculator me-2"></i>Calculate Retirement Plan
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="col-lg-7">
+      {% if result %}
+      <div class="ret-result-card {% if result.on_track %}on-track{% else %}off-track{% endif %}">
+        <div class="ret-status-badge">
+          {% if result.on_track %}
+            <i class="bi bi-check-circle-fill me-2"></i>On Track
+          {% else %}
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>Needs Attention
+          {% endif %}
+        </div>
+
+        <div class="row g-3 mt-2">
+          <div class="col-6">
+            <div class="ret-stat">
+              <div class="ret-stat-label">Years to Retire</div>
+              <div class="ret-stat-value">{{ result.yrs_to_retire }} years</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="ret-stat">
+              <div class="ret-stat-label">Retirement Duration</div>
+              <div class="ret-stat-value">{{ result.ret_duration }} years</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="ret-stat">
+              <div class="ret-stat-label">Monthly Expense at Retirement</div>
+              <div class="ret-stat-value">{{ fmt_inr(result.future_monthly_exp) }}</div>
+              <div class="ret-stat-sub">Inflation-adjusted</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="ret-stat">
+              <div class="ret-stat-label">Corpus Needed at Retirement</div>
+              <div class="ret-stat-value text-danger">{{ fmt_inr(result.corpus_needed) }}</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="ret-stat">
+              <div class="ret-stat-label">Projected Corpus (Existing)</div>
+              <div class="ret-stat-value">{{ fmt_inr(result.corpus_fv) }}</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="ret-stat">
+              <div class="ret-stat-label">Projected SIP Corpus</div>
+              <div class="ret-stat-value">{{ fmt_inr(result.sip_fv) }}</div>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="ret-total-bar">
+              <div class="d-flex justify-content-between mb-1">
+                <span>Total Projected: <strong>{{ fmt_inr(result.projected_corpus) }}</strong></span>
+                <span>Goal: <strong>{{ fmt_inr(result.corpus_needed) }}</strong></span>
+              </div>
+              {% set pct = [(result.projected_corpus / result.corpus_needed * 100) if result.corpus_needed > 0 else 0, 100]|min %}
+              <div class="progress" style="height:16px;border-radius:8px">
+                <div class="progress-bar {% if pct >= 100 %}bg-success{% elif pct >= 70 %}bg-warning{% else %}bg-danger{% endif %}"
+                     style="width:{{ pct }}%">{{ "%.0f"|format(pct) }}%</div>
+              </div>
+            </div>
+          </div>
+
+          {% if result.on_track %}
+          <div class="col-12">
+            <div class="alert alert-success border-0 mb-0">
+              <i class="bi bi-trophy-fill me-2"></i>
+              <strong>You have a surplus of {{ fmt_inr(result.surplus) }}!</strong>
+              You're on track for a comfortable retirement.
+            </div>
+          </div>
+          {% else %}
+          <div class="col-12">
+            <div class="alert alert-warning border-0 mb-0">
+              <i class="bi bi-lightbulb-fill me-2"></i>
+              <strong>Shortfall: {{ fmt_inr(result.shortfall) }}</strong><br>
+              To meet your goal, you need a monthly SIP of
+              <strong>{{ fmt_inr(result.req_sip) }}</strong>
+              (currently: {{ fmt_inr(plan.monthly_sip) }}).
+              Increase your SIP by {{ fmt_inr(result.req_sip - plan.monthly_sip) }}/month.
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Wealth build-up chart -->
+      <div class="chart-card mt-3">
+        <div class="chart-title">Wealth Build-up Timeline</div>
+        <canvas id="retChart" height="120"></canvas>
+      </div>
+      {% else %}
+      <div class="text-center py-5 text-muted">
+        <i class="bi bi-umbrella fs-1 d-block mb-3"></i>
+        <p>Fill in your details on the left and click Calculate to see your retirement plan.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+{% if result %}
+<script>
+const plan = {
+  yrs: {{ result.yrs_to_retire }},
+  r_rate: {{ plan.expected_return_rate }} / 100 / 12,
+  corpus: {{ plan.current_corpus }},
+  sip: {{ plan.monthly_sip }},
+  needed: {{ result.corpus_needed }}
+};
+
+const labels = [], values = [], goals = [];
+for (let y = 0; y <= plan.yrs; y++) {
+  labels.push('Year ' + y);
+  const n = y * 12;
+  const cv = plan.corpus * Math.pow(1 + plan.r_rate, n);
+  const sv = plan.r_rate > 0
+    ? plan.sip * (Math.pow(1 + plan.r_rate, n) - 1) / plan.r_rate * (1 + plan.r_rate)
+    : plan.sip * n;
+  values.push(Math.round(cv + sv));
+  goals.push(Math.round(plan.needed));
+}
+
+new Chart(document.getElementById('retChart'), {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [
+      { label: 'Projected Corpus', data: values, borderColor: '#28a745', backgroundColor: '#28a74522',
+        fill: true, tension: 0.4 },
+      { label: 'Required Corpus', data: goals, borderColor: '#dc3545', borderDash: [8,4],
+        fill: false, pointRadius: 0 }
+    ]
+  },
+  options: {
+    responsive: true, interaction: { mode: 'index' },
+    plugins: { legend: { position: 'top' } },
+    scales: { y: { ticks: { callback: v => '₹' + (v >= 10000000 ? (v/10000000).toFixed(1)+'Cr' : v >= 100000 ? (v/100000).toFixed(1)+'L' : v >= 1000 ? (v/1000).toFixed(0)+'K' : v) } } }
+  }
+});
+</script>
+{% endif %}
+{% endblock %}

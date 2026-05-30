@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.pyo
+finance_tracker.db
+uploads/
+.env
+*.bat
+*.ps1
