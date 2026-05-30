@@ -12,6 +12,7 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'finance_tracker_secret_2024')
 DATABASE = os.environ.get('DATABASE_PATH', os.path.join(os.path.dirname(__file__), 'finance_tracker.db'))
+os.makedirs(os.path.dirname(DATABASE), exist_ok=True)
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads', 'statements')
 ALLOWED_EXTENSIONS = {'pdf', 'csv', 'ofx', 'xlsx', 'xls'}
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB
