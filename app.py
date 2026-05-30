@@ -1112,8 +1112,9 @@ def admin_reset_password(uid):
     return redirect(url_for('admin'))
 
 
+init_db()
+
 if __name__ == '__main__':
-    init_db()
     print("\n" + "="*50)
     print("  Finance Tracker is running!")
     print("  Open: http://127.0.0.1:5000")
